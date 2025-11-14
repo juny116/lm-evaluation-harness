@@ -31,7 +31,7 @@ from lm_eval import utils
 from lm_eval.api.model import TemplateLM
 from lm_eval.api.registry import register_model
 from lm_eval.models.utils import (
-    Collator,
+    Collator, 
     clear_torch_cache,
     configure_pad_token,
     get_dtype,

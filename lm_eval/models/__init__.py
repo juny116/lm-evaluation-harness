@@ -19,6 +19,8 @@ from . import (
     textsynth,
     vllm_causallms,
     vllm_vlms,
+    hf_qwen_omni,
+    hf_emu3,
 )
 
 
