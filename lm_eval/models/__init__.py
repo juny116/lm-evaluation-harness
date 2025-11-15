@@ -21,6 +21,7 @@ from . import (
     vllm_vlms,
     hf_qwen_omni,
     hf_emu3,
+    hf_janus_pro,
 )
 
 

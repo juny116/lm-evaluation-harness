@@ -93,6 +93,12 @@ class HFEmu3LM(HFLM):
             think_end_token=think_end_token,
             **kwargs,
         )
+        
+        # Remove max_new_tokens from generation_config to avoid conflicts with max_length
+        if hasattr(self.model, 'generation_config') and self.model.generation_config is not None:
+            if hasattr(self.model.generation_config, 'max_new_tokens'):
+                self.model.generation_config.max_new_tokens = None
+                eval_logger.info("Removed max_new_tokens from Emu3 generation_config")
 
     def _model_call(
         self,
