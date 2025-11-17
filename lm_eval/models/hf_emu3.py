@@ -167,6 +167,40 @@ class HFEmu3LM(HFLM):
             **generation_kwargs,
         )
 
+    def _encode_pair(
+        self, context: str, continuation: str
+    ) -> tuple[list[int], list[int]]:
+        """
+        Override _encode_pair to handle Emu3 tokenizer's quirk with short continuations.
+        
+        Emu3's tokenizer can merge very short continuations (like ".") with the
+        preceding context token, resulting in empty continuation_enc. We fix this
+        by ensuring the continuation always has proper spacing.
+        """
+        # Handle trailing spaces in context (standard behavior)
+        n_spaces = len(context) - len(context.rstrip())
+        if n_spaces > 0:
+            continuation = context[-n_spaces:] + continuation
+            context = context[:-n_spaces:]
+        
+        # Emu3-specific fix: If continuation is very short and doesn't start with space,
+        # prepend a space to prevent tokenizer from merging it with context
+        if continuation and not continuation[0].isspace() and len(continuation.strip()) <= 3:
+            continuation = " " + continuation
+        
+        # Use parent class logic
+        if self.backend == "causal":
+            whole_enc = self.tok_encode(context + continuation)
+            context_enc = self.tok_encode(context)
+            
+            context_enc_len = len(context_enc)
+            continuation_enc = whole_enc[context_enc_len:]
+        else:
+            context_enc = self.tok_encode(context)
+            continuation_enc = self.tok_encode(continuation, add_special_tokens=False)
+        
+        return context_enc, continuation_enc
+
     def apply_chat_template(
         self, chat_history: list[dict[str, str]], add_generation_prompt: bool = True
     ) -> str:
@@ -177,6 +211,9 @@ class HFEmu3LM(HFLM):
         [{"role": "user", "content": [{"type": "text", "text": "..."}]}]
         
         The processor's apply_chat_template handles the formatting.
+        
+        Note: Emu3 template uses {% generation %} tags which can cause issues with
+        continue_final_message. We avoid using that parameter to prevent empty continuations.
         """
         # Use processor if available, otherwise fall back to tokenizer
         # template_handler = getattr(self, '_processor', None) or self.tokenizer
@@ -200,11 +237,17 @@ class HFEmu3LM(HFLM):
             
             try:
                 # Use processor's apply_chat_template
+                # IMPORTANT: Don't use continue_final_message with Emu3's {% generation %} tags
+                # as it can cause the continuation to become empty during tokenization.
+                # Override chat_template_args to exclude continue_final_message
+                template_args = dict(self.chat_template_args)
+                template_args.pop('continue_final_message', None)  # Remove if exists
+                
                 result = template_handler.apply_chat_template(
                     formatted_messages,
                     add_generation_prompt=add_generation_prompt,
                     tokenize=False,  # Return string, not tokens
-                    **self.chat_template_args,
+                    **template_args,
                 )
                 return result
             except Exception as e:
